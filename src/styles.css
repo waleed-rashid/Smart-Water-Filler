@@ -1,0 +1,521 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --bg: #141616;
+  --panel: #06131d;
+  --panel-2: #0a1b28;
+  --card: rgba(22, 45, 61, 0.68);
+  --card-strong: rgba(29, 59, 78, 0.82);
+  --text: #f4f7fb;
+  --muted: #9fb1bd;
+  --cyan: #72d5ff;
+  --cyan-soft: rgba(114, 213, 255, 0.18);
+  --track: #4d5962;
+  --frame: #272923;
+  --shadow: 0 26px 70px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  color: var(--text);
+  background:
+    radial-gradient(circle at 45% 12%, rgba(119, 214, 255, 0.13), transparent 30%),
+    linear-gradient(135deg, #071a26 0%, #031018 55%, #020910 100%);
+}
+
+button {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.screen {
+  display: grid;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 85% 12%, rgba(86, 190, 255, 0.14), transparent 28%),
+    radial-gradient(circle at 8% 90%, rgba(35, 129, 173, 0.12), transparent 28%),
+    linear-gradient(135deg, #071a26 0%, #031018 55%, #020910 100%);
+}
+
+.tabletFrame {
+  width: 100vw;
+  height: 100dvh;
+  background: transparent;
+}
+
+.dashboard {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: clamp(18px, 3vmin, 34px) clamp(34px, 6vmin, 70px) clamp(28px, 4vmin, 46px);
+  background:
+    radial-gradient(circle at 85% 12%, rgba(86, 190, 255, 0.14), transparent 28%),
+    radial-gradient(circle at 8% 90%, rgba(35, 129, 173, 0.12), transparent 28%),
+    linear-gradient(135deg, #071a26 0%, #031018 55%, #020910 100%);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr clamp(250px, 30vmin, 340px);
+  align-items: center;
+  gap: clamp(24px, 4vw, 44px);
+}
+
+.headline p {
+  margin: 0 0 clamp(28px, 5vmin, 48px);
+  color: rgba(244, 247, 251, 0.95);
+  font-size: clamp(1.55rem, 3vmin, 2.15rem);
+  font-weight: 650;
+}
+
+.headline h1 {
+  margin: 0;
+  font-size: clamp(3.1rem, 7.2vmin, 5.2rem);
+  font-weight: 520;
+  letter-spacing: 0;
+  line-height: 0.95;
+}
+
+.headline span,
+.profileSection h2 {
+  display: block;
+  margin: 0 0 clamp(14px, 2.2vmin, 20px);
+  color: var(--cyan);
+  font-size: clamp(1.15rem, 2.35vmin, 1.65rem);
+  font-weight: 650;
+}
+
+.progressRing {
+  position: relative;
+  width: clamp(250px, 30vmin, 340px);
+  aspect-ratio: 1;
+  justify-self: end;
+}
+
+.progressRing svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ringTrack,
+.ringFill {
+  fill: none;
+  stroke-width: 12;
+}
+
+.ringTrack {
+  stroke: var(--track);
+}
+
+.ringFill {
+  stroke: var(--cyan);
+  stroke-linecap: butt;
+  transition: stroke-dashoffset 0.35s ease;
+}
+
+.progressRing strong {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: clamp(3.15rem, 6.2vmin, 4.45rem);
+  font-weight: 520;
+}
+
+.profileSection {
+  margin-top: clamp(28px, 5vmin, 46px);
+}
+
+.profileSection h2 {
+  margin: 0 0 clamp(14px, 2.4vmin, 22px);
+  font-size: clamp(1.08rem, 2vmin, 1.45rem);
+}
+
+.profiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(18px, 4.8vmin, 56px);
+}
+
+.profileButton {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  background: transparent;
+}
+
+.profileCircle {
+  --profile-color: var(--cyan);
+  display: grid;
+  width: clamp(102px, 13.5vmin, 142px);
+  aspect-ratio: 1;
+  place-items: center;
+  border: 3px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.36), transparent 24%),
+    linear-gradient(145deg, color-mix(in srgb, var(--profile-color) 80%, #ffffff 12%), color-mix(in srgb, var(--profile-color) 55%, #00111a 45%));
+  color: #06131d;
+  font-size: clamp(1.6rem, 3vmin, 2.25rem);
+  font-weight: 850;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
+.profileButton.active .profileCircle {
+  border-color: var(--cyan);
+  box-shadow:
+    0 0 0 4px rgba(114, 213, 255, 0.18),
+    0 16px 32px rgba(0, 0, 0, 0.32);
+}
+
+.profileName {
+  max-width: 142px;
+  color: rgba(244, 247, 251, 0.92);
+  font-size: clamp(1.08rem, 2.05vmin, 1.45rem);
+  font-weight: 660;
+  line-height: 1.08;
+  text-align: center;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(14px, 2.2vmin, 22px);
+  margin-top: clamp(22px, 4vmin, 34px);
+}
+
+.metricCard {
+  display: grid;
+  min-height: clamp(118px, 14.5vmin, 146px);
+  align-content: center;
+  justify-items: center;
+  padding: 18px 14px;
+  border: 1px solid rgba(114, 213, 255, 0.06);
+  border-radius: 18px;
+  background: linear-gradient(145deg, var(--card-strong), var(--card));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  text-align: center;
+}
+
+.metricCard.interactive {
+  width: 100%;
+}
+
+.metricCard span {
+  color: var(--cyan);
+  font-size: clamp(1.08rem, 2vmin, 1.36rem);
+  font-weight: 700;
+}
+
+.metricCard strong {
+  margin-top: 10px;
+  color: #fff;
+  font-size: clamp(1.9rem, 3.9vmin, 2.7rem);
+  font-weight: 520;
+  line-height: 1;
+}
+
+.metricCard small {
+  min-height: 18px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: clamp(0.82rem, 1.45vmin, 1rem);
+  font-weight: 650;
+}
+
+.fillControls {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  align-items: center;
+  gap: clamp(14px, 2.2vmin, 22px);
+  margin-top: clamp(18px, 3vmin, 26px);
+}
+
+.startButton {
+  min-height: clamp(56px, 7vmin, 70px);
+  border-radius: 999px;
+  font-size: clamp(1rem, 1.8vmin, 1.25rem);
+  font-weight: 800;
+  background: var(--cyan);
+  color: #031018;
+}
+
+.startButton.isStopping {
+  background: #ff8f70;
+  color: #180704;
+}
+
+.liveReadout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: clamp(56px, 7vmin, 70px);
+  padding: 0 18px;
+  border: 1px solid rgba(114, 213, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(4, 18, 27, 0.7);
+}
+
+.liveReadout span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.liveReadout strong {
+  color: #fff;
+  font-size: clamp(1.1rem, 2vmin, 1.35rem);
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(10px);
+  animation: backdropFadeIn 180ms ease-out both;
+}
+
+.historyModal {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 32px));
+  overflow: hidden;
+  border: 1px solid rgba(114, 213, 255, 0.24);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 85% 0%, rgba(114, 213, 255, 0.16), transparent 30%),
+    linear-gradient(145deg, #082030, #031018);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.58);
+  animation: modalFadeIn 220ms ease-out both;
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid rgba(114, 213, 255, 0.12);
+}
+
+.modalHeader span {
+  color: var(--cyan);
+  font-weight: 750;
+}
+
+.modalHeader h2 {
+  margin: 4px 0 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 560;
+}
+
+.closeButton {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid rgba(114, 213, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-weight: 850;
+}
+
+.historyDays {
+  display: grid;
+  gap: 12px;
+  max-height: calc(min(760px, 100vh - 32px) - 112px);
+  overflow: auto;
+  padding: 18px 22px 24px;
+}
+
+.historyDay {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(114, 213, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(22, 45, 61, 0.55);
+}
+
+.daySummary {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
+
+.daySummary span {
+  color: var(--cyan);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.daySummary strong {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 560;
+}
+
+.sessionList {
+  display: grid;
+  gap: 8px;
+}
+
+.sessionList p {
+  align-self: center;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.sessionRow {
+  display: grid;
+  grid-template-columns: 92px 1fr 1fr;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(4, 18, 27, 0.54);
+}
+
+.sessionRow span,
+.sessionRow small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.sessionRow strong {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+@media (max-width: 760px) {
+  .screen {
+    padding: 0;
+    background:
+      radial-gradient(circle at 85% 12%, rgba(86, 190, 255, 0.14), transparent 28%),
+      radial-gradient(circle at 8% 90%, rgba(35, 129, 173, 0.12), transparent 28%),
+      linear-gradient(135deg, #071a26 0%, #031018 55%, #020910 100%);
+  }
+
+  .tabletFrame {
+    width: 100vw;
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .dashboard {
+    min-height: 100vh;
+    padding: 26px 20px;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .headline p {
+    margin-bottom: 22px;
+  }
+
+  .progressRing {
+    width: 150px;
+    justify-self: center;
+  }
+
+  .profiles,
+  .metricGrid,
+  .fillControls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .metricGrid .metricCard:last-child,
+  .fillControls .liveReadout {
+    grid-column: 1 / -1;
+  }
+
+  .historyDay {
+    grid-template-columns: 1fr;
+  }
+
+  .sessionRow {
+    grid-template-columns: 82px 1fr;
+  }
+
+  .sessionRow small {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 460px) {
+  .profiles,
+  .metricGrid,
+  .fillControls {
+    grid-template-columns: 1fr;
+  }
+
+  .metricGrid .metricCard:last-child,
+  .fillControls .liveReadout {
+    grid-column: auto;
+  }
+}
