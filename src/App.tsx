@@ -34,15 +34,29 @@ type WaterState = {
   profiles: Profile[];
 };
 
+type EspStatus = {
+  bottleDetected: boolean;
+  distanceMm: number;
+  dispensing: boolean;
+  elapsedMs: number;
+};
+
+const ESP32_API_URL = import.meta.env.VITE_ESP32_API_URL?.replace(/\/$/, "") ?? "";
+const isEspConfigured = ESP32_API_URL.length > 0 && !ESP32_API_URL.includes("YOUR_ESP32_IP");
 const STORAGE_KEY = "aqua-panel-tablet:v2";
 const RING_RADIUS = 62;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const GOAL_STEP_ML = 100;
+const MIN_GOAL_ML = 500;
+const MAX_GOAL_ML = 10000;
+const FLOW_RATE_ML_SEC = 46.1;
+const FILL_STOP_BUFFER_ML = 50;
 const sharedBottles: Bottle[] = [
   { id: "cup", name: "Cup", ml: 250 },
   { id: "tumbler", name: "Owala", ml: 710 },
   { id: "bottle", name: "Stanley", ml: 1183 },
 ];
-const profileNames = ["User 1", "User 2", "User 3", "User 4"];
+const profileNames = ["User 1", "User 2", "User 3", "User 4", "User 5", "User 6"];
 
 function todayAt(hour: number, minute: number) {
   const date = new Date();
@@ -51,8 +65,8 @@ function todayAt(hour: number, minute: number) {
 }
 
 const seedState: WaterState = {
-  activeProfileId: "waleed",
-  flowRateMlSec: 18,
+  activeProfileId: "user1",
+  flowRateMlSec: FLOW_RATE_ML_SEC,
   bottlePresent: true,
   selectedBottleId: "tumbler",
   profiles: [
@@ -91,6 +105,22 @@ const seedState: WaterState = {
       bottles: sharedBottles,
       history: [],
     },
+    {
+      id: "user5",
+      name: "User 5",
+      color: "#d59cff",
+      goalMl: 2200,
+      bottles: sharedBottles,
+      history: [],
+    },
+    {
+      id: "user6",
+      name: "User 6",
+      color: "#f4d35e",
+      goalMl: 2200,
+      bottles: sharedBottles,
+      history: [],
+    },
   ],
 };
 
@@ -100,14 +130,25 @@ function loadState(): WaterState {
 
   try {
     const parsed = { ...seedState, ...JSON.parse(saved) } as WaterState;
-    return {
-      ...parsed,
-      selectedBottleId: sharedBottles.some((bottle) => bottle.id === parsed.selectedBottleId) ? parsed.selectedBottleId : sharedBottles[0].id,
-      profiles: parsed.profiles.map((profile, index) => ({
-        ...profile,
+    const savedProfiles = parsed.profiles ?? [];
+    const profiles = seedState.profiles.map((seedProfile, index) => {
+      const savedProfile = savedProfiles.find((profile) => profile.id === seedProfile.id) ?? savedProfiles[index];
+
+      return {
+        ...seedProfile,
+        history: savedProfile?.history ?? seedProfile.history,
+        goalMl: savedProfile?.goalMl ?? seedProfile.goalMl,
         name: profileNames[index] ?? `User ${index + 1}`,
         bottles: sharedBottles,
-      })),
+      };
+    });
+
+    return {
+      ...parsed,
+      flowRateMlSec: FLOW_RATE_ML_SEC,
+      selectedBottleId: sharedBottles.some((bottle) => bottle.id === parsed.selectedBottleId) ? parsed.selectedBottleId : sharedBottles[0].id,
+      activeProfileId: profiles.some((profile) => profile.id === parsed.activeProfileId) ? parsed.activeProfileId : profiles[0].id,
+      profiles,
     };
   } catch {
     return seedState;
@@ -118,12 +159,41 @@ function formatMl(amount: number) {
   return `${Math.round(amount).toLocaleString()} mL`;
 }
 
+async function requestEsp<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${ESP32_API_URL}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(payload?.error ?? `ESP32 request failed: ${response.status}`);
+  }
+
+  return payload as T;
+}
+
 function createSessionId() {
-  if ("randomUUID" in crypto) {
-    return crypto.randomUUID();
+  if (globalThis.crypto && "randomUUID" in globalThis.crypto) {
+    return globalThis.crypto.randomUUID();
   }
 
   return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function formatHardwareError(error: unknown) {
+  const message = error instanceof Error ? error.message : "ESP32 status unavailable";
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("load failed") || normalized.includes("failed to fetch") || normalized.includes("networkerror")) {
+    return "ESP32 offline";
+  }
+
+  return message;
 }
 
 function isSameDay(left: Date, right: Date) {
@@ -180,6 +250,11 @@ function App() {
   const [fillStartedAt, setFillStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isGoalOpen, setIsGoalOpen] = useState(false);
+  const [draftGoalMl, setDraftGoalMl] = useState(seedState.profiles[0].goalMl);
+  const [espStatus, setEspStatus] = useState<EspStatus | null>(null);
+  const [hardwareError, setHardwareError] = useState<string | null>(null);
+  const [isCommandPending, setIsCommandPending] = useState(false);
 
   const activeProfile = useMemo(
     () => waterState.profiles.find((profile) => profile.id === waterState.activeProfileId) ?? waterState.profiles[0],
@@ -191,7 +266,8 @@ function App() {
   const latestFill = lastFill(activeProfile);
   const liveSeconds = fillStartedAt ? (now - fillStartedAt) / 1000 : 0;
   const liveAmount = liveSeconds * waterState.flowRateMlSec;
-  const liveFillAmount = fillStartedAt ? Math.min(liveAmount, selectedBottle.ml) : 0;
+  const fillCutoffMl = Math.max(0, selectedBottle.ml - FILL_STOP_BUFFER_ML);
+  const liveFillAmount = fillStartedAt ? Math.min(liveAmount, fillCutoffMl) : 0;
   const displayedTotalToday = totalToday + liveFillAmount;
   const displayedProgress = Math.round((displayedTotalToday / activeProfile.goalMl) * 100);
   const displayedRingProgress = Math.min(100, displayedProgress);
@@ -213,18 +289,79 @@ function App() {
   }, [waterState]);
 
   useEffect(() => {
+    const preventDefault = (event: Event) => event.preventDefault();
+
+    document.addEventListener("touchmove", preventDefault, { passive: false });
+    document.addEventListener("gesturestart", preventDefault);
+    document.addEventListener("gesturechange", preventDefault);
+
+    return () => {
+      document.removeEventListener("touchmove", preventDefault);
+      document.removeEventListener("gesturestart", preventDefault);
+      document.removeEventListener("gesturechange", preventDefault);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isEspConfigured) {
+      setHardwareError("ESP32 not configured");
+      return;
+    }
+
+    let cancelled = false;
+
+    async function pollStatus() {
+      try {
+        const status = await requestEsp<EspStatus>("/status");
+        if (cancelled) return;
+
+        setEspStatus(status);
+        setHardwareError(null);
+        setWaterState((current) =>
+          current.bottlePresent === status.bottleDetected
+            ? current
+            : {
+                ...current,
+                bottlePresent: status.bottleDetected,
+              },
+        );
+      } catch (error) {
+        if (cancelled) return;
+        setHardwareError(formatHardwareError(error));
+      }
+    }
+
+    void pollStatus();
+    const interval = window.setInterval(pollStatus, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!fillStartedAt) return;
     const interval = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(interval);
   }, [fillStartedAt]);
 
   useEffect(() => {
-    if (!fillStartedAt || liveAmount < selectedBottle.ml) return;
+    if (!fillStartedAt || isCommandPending || liveAmount < fillCutoffMl) return;
 
-    addSession("dashboard", selectedBottle.ml, selectedBottle.ml / waterState.flowRateMlSec);
+    void stopFill(fillCutoffMl, fillCutoffMl / waterState.flowRateMlSec);
+  }, [fillStartedAt, isCommandPending, fillCutoffMl, liveAmount, waterState.flowRateMlSec]);
+
+  useEffect(() => {
+    if (!isEspConfigured || !fillStartedAt || !espStatus || espStatus.bottleDetected) return;
+
+    if (liveSeconds >= 0.8) {
+      addSession("sensor", liveAmount, liveSeconds);
+    }
+
     setFillStartedAt(null);
     setNow(Date.now());
-  }, [fillStartedAt, liveAmount, selectedBottle.ml, waterState.flowRateMlSec]);
+  }, [espStatus, fillStartedAt, liveAmount, liveSeconds]);
 
   function updateProfile(profileId: string, updater: (profile: Profile) => Profile) {
     setWaterState((current) => ({
@@ -250,20 +387,51 @@ function App() {
     }));
   }
 
-  function startFill() {
+  async function startFill() {
     if (!waterState.bottlePresent || fillStartedAt) return;
-    const startedAt = Date.now();
-    setNow(startedAt);
-    setFillStartedAt(startedAt);
+
+    setIsCommandPending(true);
+    setHardwareError(null);
+
+    try {
+      if (!isEspConfigured) {
+        throw new Error("Set VITE_ESP32_API_URL in .env first");
+      }
+
+      await requestEsp<{ ok: boolean }>("/fill/start", { method: "POST" });
+
+      const startedAt = Date.now();
+      setNow(startedAt);
+      setFillStartedAt(startedAt);
+    } catch (error) {
+      setHardwareError(formatHardwareError(error));
+    } finally {
+      setIsCommandPending(false);
+    }
   }
 
-  function stopFill() {
+  async function stopFill(amountToSave = liveAmount, secondsToSave = liveSeconds) {
     if (!fillStartedAt) return;
-    if (liveSeconds >= 0.8) {
-      addSession("dashboard", liveAmount, liveSeconds);
+
+    setIsCommandPending(true);
+    setHardwareError(null);
+
+    try {
+      if (isEspConfigured) {
+        await requestEsp<{ ok: boolean; elapsedMs?: number }>("/fill/stop", { method: "POST" });
+      }
+
+      if (secondsToSave >= 0.8) {
+        addSession("dashboard", amountToSave, secondsToSave);
+      }
+
+      setFillStartedAt(null);
+      setNow(Date.now());
+    } catch (error) {
+      setHardwareError(formatHardwareError(error));
+    } finally {
+      setIsCommandPending(false);
     }
-    setFillStartedAt(null);
-    setNow(Date.now());
   }
 
   function selectProfile(profile: Profile) {
@@ -281,16 +449,40 @@ function App() {
     setWaterState((current) => ({ ...current, selectedBottleId: nextBottle.id }));
   }
 
+  function adjustGoal(amount: number) {
+    setDraftGoalMl((goal) => Math.min(MAX_GOAL_ML, Math.max(MIN_GOAL_ML, goal + amount)));
+  }
+
+  function openGoalEditor() {
+    setDraftGoalMl(activeProfile.goalMl);
+    setIsGoalOpen(true);
+  }
+
+  function cancelGoalEditor() {
+    setDraftGoalMl(activeProfile.goalMl);
+    setIsGoalOpen(false);
+  }
+
+  function confirmGoalEditor() {
+    updateProfile(activeProfile.id, (profile) => ({
+      ...profile,
+      goalMl: draftGoalMl,
+    }));
+    setIsGoalOpen(false);
+  }
+
   return (
     <main className="screen">
       <section className="tabletFrame" aria-label="Water tracking dashboard">
         <div className="dashboard">
           <header className="hero">
             <div className="headline">
-              <p>Welcome, {activeProfile.name}!</p>
-              <span>Today's Intake</span>
+              <span>{activeProfile.name}'s Intake Today</span>
               <h1>
-                {Math.round(displayedTotalToday).toLocaleString()} / {activeProfile.goalMl.toLocaleString()} mL
+                {Math.round(displayedTotalToday).toLocaleString()} /{" "}
+                <button className="goalValueButton" onClick={openGoalEditor} type="button" aria-label="Change daily goal">
+                  {activeProfile.goalMl.toLocaleString()} mL
+                </button>
               </h1>
             </div>
 
@@ -351,15 +543,27 @@ function App() {
           <footer className="fillControls">
             <button
               className={`startButton ${fillStartedAt ? "isStopping" : ""}`}
-              disabled={!waterState.bottlePresent && !fillStartedAt}
-              onClick={fillStartedAt ? stopFill : startFill}
+              disabled={isCommandPending || !isEspConfigured || (!waterState.bottlePresent && !fillStartedAt)}
+              onClick={() => {
+                void (fillStartedAt ? stopFill() : startFill());
+              }}
               type="button"
             >
-              {fillStartedAt ? "Stop Dispensing" : "Start Dispensing"}
+              {isCommandPending ? "Working..." : fillStartedAt ? "Stop Dispensing" : "Start Dispensing"}
             </button>
-            <div className="liveReadout">
-              <span>{fillStartedAt ? "Dispensing" : waterState.bottlePresent ? "Bottle detected" : "No bottle"}</span>
-              <strong>{formatMl(liveAmount)}</strong>
+            <div className={`liveReadout ${waterState.bottlePresent ? "hasBottle" : "noBottle"}`}>
+              <span>
+                {hardwareError
+                  ? hardwareError
+                  : fillStartedAt
+                    ? "Dispensing"
+                    : !isEspConfigured
+                      ? "Set ESP32 IP"
+                      : waterState.bottlePresent
+                      ? "Bottle detected"
+                      : "No bottle"}
+              </span>
+              {fillStartedAt ? <strong>{formatMl(liveAmount)}</strong> : <i aria-hidden="true" />}
             </div>
           </footer>
         </div>
@@ -388,22 +592,56 @@ function App() {
 
                   <div className="sessionList">
                     {day.sessions.length ? (
-                      day.sessions.map((session) => {
-                        const bottle = activeProfile.bottles.find((item) => item.id === session.bottleId);
+                      (() => {
+                        const session = day.sessions[0];
+
                         return (
                           <div className="sessionRow" key={session.id}>
                             <span>{new Date(session.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
                             <strong>{formatMl(session.amountMl)}</strong>
-                            <small>{bottle?.name ?? "Custom"} / {session.source}</small>
                           </div>
                         );
-                      })
+                      })()
                     ) : (
                       <p>No fills</p>
                     )}
                   </div>
                 </article>
               ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isGoalOpen ? (
+        <div className="modalBackdrop" role="presentation" onClick={cancelGoalEditor}>
+          <section className="goalModal" aria-label="Daily goal editor" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <header className="modalHeader">
+              <div>
+                <span>Daily Goal</span>
+                <h2>{activeProfile.name}</h2>
+              </div>
+              <button className="closeButton" onClick={cancelGoalEditor} type="button" aria-label="Close goal editor">
+                X
+              </button>
+            </header>
+
+            <div className="goalEditor">
+              <button className="goalAdjustButton" onClick={() => adjustGoal(-GOAL_STEP_ML)} type="button" aria-label="Decrease daily goal">
+                -
+              </button>
+              <strong>{formatMl(draftGoalMl)}</strong>
+              <button className="goalAdjustButton" onClick={() => adjustGoal(GOAL_STEP_ML)} type="button" aria-label="Increase daily goal">
+                +
+              </button>
+            </div>
+            <div className="goalActions">
+              <button className="goalActionButton secondary" onClick={cancelGoalEditor} type="button">
+                Cancel
+              </button>
+              <button className="goalActionButton primary" onClick={confirmGoalEditor} type="button">
+                Confirm
+              </button>
             </div>
           </section>
         </div>

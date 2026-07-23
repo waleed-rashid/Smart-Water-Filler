@@ -15,6 +15,7 @@ vite.config.d.ts
 .env
 .env.*
 !.env.example
+firmware/**/secrets.h
 
 # Logs
 npm-debug.log*

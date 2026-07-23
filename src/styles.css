@@ -13,6 +13,7 @@
   --track: #4d5962;
   --frame: #272923;
   --shadow: 0 26px 70px rgba(0, 0, 0, 0.5);
+  --app-bg-solid: #020910;
 }
 
 * {
@@ -25,15 +26,27 @@ body,
   min-width: 320px;
   width: 100%;
   height: 100%;
+  height: -webkit-fill-available;
   margin: 0;
   overflow: hidden;
+  touch-action: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  background-color: var(--app-bg-solid);
+  user-select: none;
 }
 
 body {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: -webkit-fill-available;
   color: var(--text);
   background:
     radial-gradient(circle at 45% 12%, rgba(119, 214, 255, 0.13), transparent 30%),
     linear-gradient(135deg, #071a26 0%, #031018 55%, #020910 100%);
+  background-color: var(--app-bg-solid);
 }
 
 button {
@@ -41,6 +54,7 @@ button {
   color: inherit;
   font: inherit;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 button:disabled {
@@ -49,19 +63,46 @@ button:disabled {
 }
 
 .screen {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: -48px;
+  left: 0;
   display: grid;
   width: 100vw;
+  height: 100vh;
+  height: -webkit-fill-available;
   height: 100dvh;
   overflow: hidden;
+  background-color: var(--app-bg-solid);
   background:
     radial-gradient(circle at 85% 12%, rgba(86, 190, 255, 0.14), transparent 28%),
     radial-gradient(circle at 8% 90%, rgba(35, 129, 173, 0.12), transparent 28%),
     linear-gradient(135deg, #071a26 0%, #031018 55%, #020910 100%);
+  background-color: var(--app-bg-solid);
+}
+
+.screen::after {
+  position: fixed;
+  right: 0;
+  bottom: -96px;
+  left: 0;
+  z-index: 0;
+  height: 128px;
+  background: var(--app-bg-solid);
+  content: "";
+  pointer-events: none;
 }
 
 .tabletFrame {
+  position: relative;
+  z-index: 1;
   width: 100vw;
+  height: 100vh;
+  height: -webkit-fill-available;
   height: 100dvh;
+  min-height: 100vh;
+  overflow: hidden;
   background: transparent;
 }
 
@@ -72,6 +113,7 @@ button:disabled {
   flex-direction: column;
   justify-content: flex-start;
   overflow: hidden;
+  padding: 28px 56px 38px;
   padding: clamp(18px, 3vmin, 34px) clamp(34px, 6vmin, 70px) clamp(28px, 4vmin, 46px);
   background:
     radial-gradient(circle at 85% 12%, rgba(86, 190, 255, 0.14), transparent 28%),
@@ -81,37 +123,51 @@ button:disabled {
 
 .hero {
   display: grid;
+  grid-template-columns: 1fr 300px;
   grid-template-columns: 1fr clamp(250px, 30vmin, 340px);
   align-items: center;
+  grid-gap: 36px;
   gap: clamp(24px, 4vw, 44px);
-}
-
-.headline p {
-  margin: 0 0 clamp(28px, 5vmin, 48px);
-  color: rgba(244, 247, 251, 0.95);
-  font-size: clamp(1.55rem, 3vmin, 2.15rem);
-  font-weight: 650;
 }
 
 .headline h1 {
   margin: 0;
+  font-size: 4.45rem;
   font-size: clamp(3.1rem, 7.2vmin, 5.2rem);
   font-weight: 520;
   letter-spacing: 0;
   line-height: 0.95;
 }
 
+.goalValueButton {
+  margin: 0;
+  padding: 0 0.08em;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+}
+
+.goalValueButton:active {
+  color: var(--cyan);
+}
+
 .headline span,
 .profileSection h2 {
   display: block;
+  margin: 0 0 18px;
   margin: 0 0 clamp(14px, 2.2vmin, 20px);
   color: var(--cyan);
+  font-size: 1.42rem;
   font-size: clamp(1.15rem, 2.35vmin, 1.65rem);
   font-weight: 650;
 }
 
 .progressRing {
   position: relative;
+  width: 300px;
+  height: 300px;
   width: clamp(250px, 30vmin, 340px);
   aspect-ratio: 1;
   justify-self: end;
@@ -142,51 +198,69 @@ button:disabled {
 .progressRing strong {
   position: absolute;
   inset: 0;
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   place-items: center;
   color: #fff;
+  font-size: 3.8rem;
   font-size: clamp(3.15rem, 6.2vmin, 4.45rem);
   font-weight: 520;
 }
 
 .profileSection {
+  margin-top: 38px;
   margin-top: clamp(28px, 5vmin, 46px);
 }
 
 .profileSection h2 {
+  margin: 0 0 20px;
   margin: 0 0 clamp(14px, 2.4vmin, 22px);
+  font-size: 1.28rem;
   font-size: clamp(1.08rem, 2vmin, 1.45rem);
 }
 
 .profiles {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(18px, 4.8vmin, 56px);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-gap: 24px;
+  gap: clamp(14px, 3.2vmin, 36px);
 }
 
 .profileButton {
   display: grid;
   justify-items: center;
   align-content: start;
-  gap: 10px;
+  grid-gap: 36px;
+  gap: 36px;
   min-width: 0;
   background: transparent;
+  text-align: center;
 }
 
 .profileCircle {
   --profile-color: var(--cyan);
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 124px;
+  height: 124px;
   width: clamp(102px, 13.5vmin, 142px);
   aspect-ratio: 1;
+  align-items: center;
+  justify-items: center;
   place-items: center;
   border: 3px solid rgba(255, 255, 255, 0.42);
   border-radius: 999px;
+  background: linear-gradient(145deg, var(--profile-color), #123040);
   background:
     radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.36), transparent 24%),
     linear-gradient(145deg, color-mix(in srgb, var(--profile-color) 80%, #ffffff 12%), color-mix(in srgb, var(--profile-color) 55%, #00111a 45%));
-  color: #06131d;
+  color: #ffffff;
+  font-size: 1.95rem;
   font-size: clamp(1.6rem, 3vmin, 2.25rem);
   font-weight: 850;
+  line-height: 1;
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
 }
 
@@ -198,8 +272,12 @@ button:disabled {
 }
 
 .profileName {
+  display: block;
+  width: 100%;
   max-width: 142px;
+  margin-top: 4px;
   color: rgba(244, 247, 251, 0.92);
+  font-size: 1.24rem;
   font-size: clamp(1.08rem, 2.05vmin, 1.45rem);
   font-weight: 660;
   line-height: 1.08;
@@ -209,12 +287,15 @@ button:disabled {
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-gap: 18px;
   gap: clamp(14px, 2.2vmin, 22px);
+  margin-top: 30px;
   margin-top: clamp(22px, 4vmin, 34px);
 }
 
 .metricCard {
   display: grid;
+  min-height: 132px;
   min-height: clamp(118px, 14.5vmin, 146px);
   align-content: center;
   justify-items: center;
@@ -232,6 +313,7 @@ button:disabled {
 
 .metricCard span {
   color: var(--cyan);
+  font-size: 1.22rem;
   font-size: clamp(1.08rem, 2vmin, 1.36rem);
   font-weight: 700;
 }
@@ -239,6 +321,7 @@ button:disabled {
 .metricCard strong {
   margin-top: 10px;
   color: #fff;
+  font-size: 2.35rem;
   font-size: clamp(1.9rem, 3.9vmin, 2.7rem);
   font-weight: 520;
   line-height: 1;
@@ -248,21 +331,26 @@ button:disabled {
   min-height: 18px;
   margin-top: 8px;
   color: var(--muted);
+  font-size: 0.92rem;
   font-size: clamp(0.82rem, 1.45vmin, 1rem);
   font-weight: 650;
 }
 
 .fillControls {
   display: grid;
-  grid-template-columns: 1fr 1.15fr;
+  grid-template-columns: minmax(0, 1fr) 285px;
   align-items: center;
+  grid-gap: 18px;
   gap: clamp(14px, 2.2vmin, 22px);
+  margin-top: 22px;
   margin-top: clamp(18px, 3vmin, 26px);
 }
 
 .startButton {
+  min-height: 64px;
   min-height: clamp(56px, 7vmin, 70px);
   border-radius: 999px;
+  font-size: 1.12rem;
   font-size: clamp(1rem, 1.8vmin, 1.25rem);
   font-weight: 800;
   background: var(--cyan);
@@ -275,41 +363,100 @@ button:disabled {
 }
 
 .liveReadout {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  justify-content: center;
+  grid-gap: 10px;
+  gap: 10px;
+  min-height: 64px;
   min-height: clamp(56px, 7vmin, 70px);
-  padding: 0 18px;
+  padding: 0 16px;
   border: 1px solid rgba(114, 213, 255, 0.16);
   border-radius: 999px;
   background: rgba(4, 18, 27, 0.7);
 }
 
 .liveReadout span {
+  width: 100%;
   color: var(--muted);
+  overflow: hidden;
   font-weight: 700;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .liveReadout strong {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
   color: #fff;
+  font-size: 1.24rem;
   font-size: clamp(1.1rem, 2vmin, 1.35rem);
+  white-space: nowrap;
+}
+
+.liveReadout i {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  display: block;
+  flex: 0 0 auto;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--cyan);
+  box-shadow: 0 0 16px rgba(114, 213, 255, 0.55);
+}
+
+.liveReadout.hasBottle i {
+  background: #4ee28a;
+  box-shadow: 0 0 16px rgba(78, 226, 138, 0.65);
+}
+
+.liveReadout.noBottle i {
+  background: #ff5d6c;
+  box-shadow: 0 0 16px rgba(255, 93, 108, 0.65);
 }
 
 .modalBackdrop {
   position: fixed;
   inset: 0;
+  z-index: 20;
   display: grid;
+  align-items: center;
+  justify-items: center;
   place-items: center;
   padding: 24px;
   background: rgba(0, 0, 0, 0.62);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   animation: backdropFadeIn 180ms ease-out both;
 }
 
 .historyModal {
-  width: min(760px, calc(100vw - 32px));
+  width: 840px;
+  width: min(840px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
   max-height: min(760px, calc(100vh - 32px));
+  overflow: hidden;
+  border: 1px solid rgba(114, 213, 255, 0.24);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 85% 0%, rgba(114, 213, 255, 0.16), transparent 30%),
+    linear-gradient(145deg, #082030, #031018);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.58);
+  animation: modalFadeIn 220ms ease-out both;
+}
+
+.goalModal {
+  width: 560px;
+  width: min(560px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
   overflow: hidden;
   border: 1px solid rgba(114, 213, 255, 0.24);
   border-radius: 28px;
@@ -346,8 +493,9 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  grid-gap: 18px;
   gap: 18px;
-  padding: 24px 26px 18px;
+  padding: 22px 28px 16px;
   border-bottom: 1px solid rgba(114, 213, 255, 0.12);
 }
 
@@ -357,15 +505,18 @@ button:disabled {
 }
 
 .modalHeader h2 {
-  margin: 4px 0 0;
-  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  margin: 2px 0 0;
+  font-size: 2.25rem;
+  font-size: clamp(1.8rem, 3.5vw, 2.45rem);
   font-weight: 560;
 }
 
 .closeButton {
   display: grid;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-items: center;
   place-items: center;
   border: 1px solid rgba(114, 213, 255, 0.22);
   border-radius: 999px;
@@ -374,19 +525,87 @@ button:disabled {
   font-weight: 850;
 }
 
+.goalEditor {
+  display: grid;
+  grid-template-columns: 92px 1fr 92px;
+  align-items: center;
+  grid-gap: 22px;
+  gap: 22px;
+  padding: 34px 34px 24px;
+}
+
+.goalEditor strong {
+  color: #fff;
+  font-size: 3.1rem;
+  font-weight: 560;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.goalAdjustButton {
+  display: grid;
+  width: 92px;
+  height: 92px;
+  align-items: center;
+  justify-items: center;
+  place-items: center;
+  border: 1px solid rgba(114, 213, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(114, 213, 255, 0.14);
+  color: #fff;
+  font-size: 3.2rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.goalAdjustButton:active {
+  background: var(--cyan);
+  color: #031018;
+}
+
+.goalActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-gap: 16px;
+  gap: 16px;
+  padding: 0 34px 34px;
+}
+
+.goalActionButton {
+  min-height: 62px;
+  border-radius: 999px;
+  font-size: 1.12rem;
+  font-weight: 800;
+}
+
+.goalActionButton.secondary {
+  border: 1px solid rgba(114, 213, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.goalActionButton.primary {
+  background: var(--cyan);
+  color: #031018;
+}
+
 .historyDays {
   display: grid;
-  gap: 12px;
-  max-height: calc(min(760px, 100vh - 32px) - 112px);
-  overflow: auto;
-  padding: 18px 22px 24px;
+  grid-gap: 10px;
+  gap: 10px;
+  overflow: hidden;
+  padding: 16px 24px 24px;
 }
 
 .historyDay {
   display: grid;
-  grid-template-columns: 170px 1fr;
-  gap: 14px;
-  padding: 14px;
+  grid-template-columns: 190px 1fr;
+  align-items: center;
+  grid-gap: 10px;
+  gap: 10px;
+  min-height: 64px;
+  padding: 11px 14px;
   border: 1px solid rgba(114, 213, 255, 0.08);
   border-radius: 18px;
   background: rgba(22, 45, 61, 0.55);
@@ -395,7 +614,8 @@ button:disabled {
 .daySummary {
   display: grid;
   align-content: center;
-  gap: 6px;
+  grid-gap: 3px;
+  gap: 3px;
 }
 
 .daySummary span {
@@ -406,13 +626,15 @@ button:disabled {
 
 .daySummary strong {
   color: #fff;
-  font-size: 1.5rem;
+  font-size: 1.45rem;
   font-weight: 560;
 }
 
 .sessionList {
   display: grid;
-  gap: 8px;
+  min-width: 0;
+  grid-gap: 6px;
+  gap: 6px;
 }
 
 .sessionList p {
@@ -424,25 +646,31 @@ button:disabled {
 
 .sessionRow {
   display: grid;
-  grid-template-columns: 92px 1fr 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 12px;
+  grid-gap: 8px;
+  gap: 8px;
   min-height: 42px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 12px;
   background: rgba(4, 18, 27, 0.54);
 }
 
 .sessionRow span,
 .sessionRow small {
+  overflow: hidden;
   color: var(--muted);
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sessionRow strong {
+  justify-self: end;
   color: #fff;
-  font-size: 1.1rem;
+  font-size: 1.12rem;
   font-weight: 650;
+  white-space: nowrap;
 }
 
 @media (max-width: 760px) {
@@ -504,6 +732,140 @@ button:disabled {
 
   .sessionRow small {
     grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) and (orientation: landscape) {
+  .dashboard {
+    justify-content: space-between;
+    height: 100vh;
+    height: -webkit-fill-available;
+    padding: 26px 54px 18px;
+  }
+
+  .hero {
+    grid-template-columns: 1fr 238px;
+    grid-gap: 38px;
+    gap: 38px;
+  }
+
+  .headline h1 {
+    font-size: 3.9rem;
+  }
+
+  .goalValueButton {
+    border-radius: 8px;
+  }
+
+  .headline span,
+  .profileSection h2 {
+    margin-bottom: 14px;
+    font-size: 1.18rem;
+  }
+
+  .progressRing {
+    width: 238px;
+    height: 238px;
+  }
+
+  .progressRing strong {
+    font-size: 3rem;
+  }
+
+  .profileSection {
+    margin-top: 20px;
+  }
+
+  .profiles {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-gap: 24px;
+    gap: 24px;
+  }
+
+  .profileButton {
+    grid-gap: 38px;
+    gap: 38px;
+  }
+
+  .profileCircle {
+    width: 102px;
+    height: 102px;
+    border-width: 3px;
+    border-color: rgba(255, 255, 255, 0.58);
+    background:
+      radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.42), transparent 23%),
+      linear-gradient(145deg, var(--profile-color), #22435a);
+    color: #020910;
+    font-size: 1.5rem;
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 255, 255, 0.08),
+      0 0 0 4px rgba(114, 213, 255, 0.08),
+      0 14px 26px rgba(0, 0, 0, 0.28);
+  }
+
+  .profileButton.active .profileCircle {
+    border-color: var(--cyan);
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 255, 255, 0.1),
+      0 0 0 5px rgba(114, 213, 255, 0.22),
+      0 16px 30px rgba(0, 0, 0, 0.34);
+  }
+
+  .profileName {
+    max-width: 104px;
+    margin-top: 6px;
+    font-size: 1rem;
+    font-weight: 760;
+  }
+
+  .metricGrid {
+    grid-gap: 22px;
+    gap: 22px;
+    margin-top: 32px;
+  }
+
+  .metricCard {
+    min-height: 96px;
+    padding: 10px 10px;
+    border-radius: 16px;
+  }
+
+  .metricCard span {
+    font-size: 1.02rem;
+  }
+
+  .metricCard strong {
+    margin-top: 6px;
+    font-size: 1.92rem;
+  }
+
+  .metricCard small {
+    margin-top: 5px;
+    font-size: 0.8rem;
+  }
+
+  .fillControls {
+    grid-template-columns: minmax(0, 1fr) 250px;
+    grid-gap: 20px;
+    gap: 20px;
+    margin-top: 32px;
+  }
+
+  .startButton,
+  .liveReadout {
+    min-height: 60px;
+  }
+
+  .startButton {
+    font-size: 1rem;
+  }
+
+  .liveReadout strong {
+    font-size: 1.05rem;
+  }
+
+  .liveReadout span {
+    font-size: 0.88rem;
   }
 }
 
