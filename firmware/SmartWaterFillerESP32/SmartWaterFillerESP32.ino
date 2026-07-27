@@ -23,12 +23,19 @@ const int BOTTLE_THRESHOLD = 150; // mm
 // ----- Time for servo to finish moving ------
 const int SERVO_MOVE_TIME = 500; // milliseconds
 
+// ---------- Wi-Fi Recovery Timing -----------
+const unsigned long WIFI_CONNECT_TIMEOUT = 20000;       // milliseconds
+const unsigned long WIFI_RECONNECT_INTERVAL = 5000;     // milliseconds
+const unsigned long WIFI_RESTART_AFTER = 120000;        // milliseconds
+
 bool bottleDetected = false;
 bool dispensing = false;
 
 int lastDistanceMm = -1;
 unsigned long startTime = 0;
 unsigned long lastSensorRead = 0;
+unsigned long wifiDisconnectedSince = 0;
+unsigned long lastWifiReconnectAttempt = 0;
 
 void sendCorsHeaders()
 {
@@ -67,8 +74,31 @@ void readBottleSensor()
 
 void releaseServo()
 {
+    if (!servo.attached())
+    {
+        servo.attach(SERVO_PIN, 500, 2400);
+    }
+
     servo.write(SERVO_RELEASE);
     dispensing = false;
+}
+
+void pressServo()
+{
+    if (!servo.attached())
+    {
+        servo.attach(SERVO_PIN, 500, 2400);
+        delay(50);
+    }
+
+    servo.write(SERVO_RELEASE);
+    delay(80);
+
+    for (int attempt = 0; attempt < 3; attempt++)
+    {
+        servo.write(SERVO_PRESS);
+        delay(120);
+    }
 }
 
 String statusJson()
@@ -107,18 +137,18 @@ void handleStartFill()
 
     if (dispensing)
     {
-        sendJson(200, "{\"ok\":true,\"message\":\"Already dispensing\"}");
+        sendJson(200, statusJson());
         return;
     }
 
     Serial.println("UI requested fill. Pressing servo...");
-    servo.write(SERVO_PRESS);
+    pressServo();
     delay(SERVO_MOVE_TIME);
 
     startTime = millis();
     dispensing = true;
 
-    sendJson(200, "{\"ok\":true,\"message\":\"Servo pressed\"}");
+    sendJson(200, "{\"ok\":true,\"dispensing\":true,\"message\":\"Servo pressed\"}");
 }
 
 void handleStopFill()
@@ -137,19 +167,76 @@ void handleStopFill()
 
 void connectWifi()
 {
+    WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
+    WiFi.setAutoReconnect(true);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
     Serial.print("Connecting to Wi-Fi");
-    while (WiFi.status() != WL_CONNECTED)
+    unsigned long connectStartedAt = millis();
+
+    while (WiFi.status() != WL_CONNECTED && millis() - connectStartedAt < WIFI_CONNECT_TIMEOUT)
     {
         delay(500);
         Serial.print(".");
     }
 
     Serial.println();
-    Serial.print("Connected. ESP32 IP: ");
-    Serial.println(WiFi.localIP());
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        wifiDisconnectedSince = 0;
+        Serial.print("Connected. ESP32 IP: ");
+        Serial.println(WiFi.localIP());
+    }
+    else
+    {
+        wifiDisconnectedSince = millis();
+        Serial.println("Wi-Fi connect timed out. Will keep retrying in loop.");
+    }
+}
+
+void maintainWifi()
+{
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        if (wifiDisconnectedSince != 0)
+        {
+            wifiDisconnectedSince = 0;
+            Serial.print("Wi-Fi reconnected. ESP32 IP: ");
+            Serial.println(WiFi.localIP());
+        }
+
+        return;
+    }
+
+    if (wifiDisconnectedSince == 0)
+    {
+        wifiDisconnectedSince = millis();
+        Serial.println("Wi-Fi disconnected.");
+
+        if (dispensing)
+        {
+            Serial.println("Releasing servo because Wi-Fi disconnected.");
+            releaseServo();
+        }
+    }
+
+    if (millis() - wifiDisconnectedSince >= WIFI_RESTART_AFTER)
+    {
+        Serial.println("Wi-Fi recovery timed out. Restarting ESP32...");
+        delay(100);
+        ESP.restart();
+    }
+
+    if (millis() - lastWifiReconnectAttempt >= WIFI_RECONNECT_INTERVAL)
+    {
+        lastWifiReconnectAttempt = millis();
+        Serial.println("Retrying Wi-Fi connection...");
+        WiFi.disconnect();
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    }
 }
 
 void setup()
@@ -188,7 +275,12 @@ void setup()
 
 void loop()
 {
-    server.handleClient();
+    maintainWifi();
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        server.handleClient();
+    }
 
     if (millis() - lastSensorRead >= 100)
     {

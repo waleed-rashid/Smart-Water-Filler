@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useEffect, useState } from "react";
 
 type Bottle = {
   id: string;
@@ -49,14 +49,16 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 const GOAL_STEP_ML = 100;
 const MIN_GOAL_ML = 500;
 const MAX_GOAL_ML = 10000;
-const FLOW_RATE_ML_SEC = 46.1;
-const FILL_STOP_BUFFER_ML = 50;
+const FLOW_RATE_ML_SEC = 40.7;
+const FILL_STOP_BUFFER_ML = 0;
 const sharedBottles: Bottle[] = [
   { id: "cup", name: "Cup", ml: 250 },
+  { id: "half-liter", name: "Bottle", ml: 500 },
   { id: "tumbler", name: "Owala", ml: 710 },
   { id: "bottle", name: "Stanley", ml: 1183 },
 ];
 const profileNames = ["User 1", "User 2", "User 3", "User 4", "User 5", "User 6"];
+const profileColorOptions = ["#5fc8f8", "#ff8f70", "#8ea7ff", "#8ddbb4", "#d59cff", "#f7da7e", "#ff6b8a", "#e8b86d", "#f2a7b5", "#b8c7d9"];
 
 function todayAt(hour: number, minute: number) {
   const date = new Date();
@@ -139,6 +141,7 @@ function loadState(): WaterState {
         history: savedProfile?.history ?? seedProfile.history,
         goalMl: savedProfile?.goalMl ?? seedProfile.goalMl,
         name: profileNames[index] ?? `User ${index + 1}`,
+        color: savedProfile?.color ?? seedProfile.color,
         bottles: sharedBottles,
       };
     });
@@ -157,6 +160,13 @@ function loadState(): WaterState {
 
 function formatMl(amount: number) {
   return `${Math.round(amount).toLocaleString()} mL`;
+}
+
+function formatLitersValue(amountMl: number) {
+  return (amountMl / 1000).toLocaleString([], {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 }
 
 async function requestEsp<T>(path: string, init?: RequestInit): Promise<T> {
@@ -250,7 +260,11 @@ function App() {
   const [fillStartedAt, setFillStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [activityDayKey, setActivityDayKey] = useState<string | null>(null);
   const [isGoalOpen, setIsGoalOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [colorProfileId, setColorProfileId] = useState<string | null>(null);
+  const [draftProfileColor, setDraftProfileColor] = useState(seedState.profiles[0].color);
   const [draftGoalMl, setDraftGoalMl] = useState(seedState.profiles[0].goalMl);
   const [espStatus, setEspStatus] = useState<EspStatus | null>(null);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
@@ -262,6 +276,7 @@ function App() {
   );
 
   const selectedBottle = activeProfile.bottles.find((bottle) => bottle.id === waterState.selectedBottleId) ?? activeProfile.bottles[0];
+  const colorProfile = colorProfileId ? waterState.profiles.find((profile) => profile.id === colorProfileId) : null;
   const totalToday = dailyTotal(activeProfile);
   const latestFill = lastFill(activeProfile);
   const liveSeconds = fillStartedAt ? (now - fillStartedAt) / 1000 : 0;
@@ -279,10 +294,12 @@ function App() {
 
     return {
       date,
+      dateKey: date.toDateString(),
       sessions,
       total: sessions.reduce((sum, session) => sum + session.amountMl, 0),
     };
   });
+  const activityDay = activityDayKey ? historyDays.find((day) => day.dateKey === activityDayKey) : null;
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(waterState));
@@ -398,10 +415,16 @@ function App() {
         throw new Error("Set VITE_ESP32_API_URL in .env first");
       }
 
-      await requestEsp<{ ok: boolean }>("/fill/start", { method: "POST" });
+      const startResponse = await requestEsp<{ ok: boolean; dispensing?: boolean; elapsedMs?: number }>("/fill/start", { method: "POST" });
+      const status = await requestEsp<EspStatus>("/status");
 
-      const startedAt = Date.now();
-      setNow(startedAt);
+      if (!startResponse.dispensing && !status.dispensing) {
+        throw new Error("Servo did not start");
+      }
+
+      const startedAt = Date.now() - (status.elapsedMs || startResponse.elapsedMs || 0);
+      setEspStatus(status);
+      setNow(Date.now());
       setFillStartedAt(startedAt);
     } catch (error) {
       setHardwareError(formatHardwareError(error));
@@ -443,6 +466,26 @@ function App() {
     }));
   }
 
+  function handleProfileClick(profile: Profile) {
+    selectProfile(profile);
+    setIsProfileMenuOpen(false);
+  }
+
+  function closeColorEditor() {
+    setDraftProfileColor(colorProfile?.color ?? seedState.profiles[0].color);
+    setColorProfileId(null);
+  }
+
+  function confirmProfileColor() {
+    if (!colorProfile) return;
+
+    updateProfile(colorProfile.id, (profile) => ({
+      ...profile,
+      color: draftProfileColor,
+    }));
+    setColorProfileId(null);
+  }
+
   function selectNextBottle() {
     const currentIndex = activeProfile.bottles.findIndex((bottle) => bottle.id === selectedBottle.id);
     const nextBottle = activeProfile.bottles[(currentIndex + 1) % activeProfile.bottles.length];
@@ -471,76 +514,216 @@ function App() {
     setIsGoalOpen(false);
   }
 
+  function closeHistory() {
+    setActivityDayKey(null);
+    setIsHistoryOpen(false);
+  }
+
   return (
     <main className="screen">
       <section className="tabletFrame" aria-label="Water tracking dashboard">
         <div className="dashboard">
-          <header className="hero">
-            <div className="headline">
-              <span>{activeProfile.name}'s Intake Today</span>
-              <h1>
-                {Math.round(displayedTotalToday).toLocaleString()} /{" "}
-                <button className="goalValueButton" onClick={openGoalEditor} type="button" aria-label="Change daily goal">
-                  {activeProfile.goalMl.toLocaleString()} mL
-                </button>
-              </h1>
-            </div>
+          <header className="modernTopGrid" aria-label="Water dashboard summary">
+            <section className="modernCard profileSummaryCard" aria-label="Profile">
+              <button
+                className="modernIcon userIcon profilePanelIcon"
+                onContextMenu={(event) => event.preventDefault()}
+                onClick={() => {
+                  setDraftProfileColor(activeProfile.color);
+                  setColorProfileId(activeProfile.id);
+                  setIsProfileMenuOpen(false);
+                }}
+                type="button"
+                aria-label={`Change ${activeProfile.name}'s profile color`}
+              >
+                <span className="profileCircle" style={{ "--profile-color": activeProfile.color } as CSSProperties}>
+                  {activeProfile.name
+                    .split(" ")
+                    .map((part) => part[0])
+                    .join("")}
+                </span>
+              </button>
+              <div className="modernCardText">
+                <span>Profile</span>
+                <div className="profileDropdown">
+                  <button
+                    className="profileSelectButton"
+                    onClick={() => setIsProfileMenuOpen((isOpen) => !isOpen)}
+                    type="button"
+                    aria-expanded={isProfileMenuOpen}
+                    aria-label="Choose profile"
+                  >
+                    <strong>{activeProfile.name}</strong>
+                    <img className="dropdownArrow" src={isProfileMenuOpen ? "/up-arrow.png" : "/down-arrow.png"} alt="" aria-hidden="true" />
+                  </button>
+                  {isProfileMenuOpen ? (
+                    <div className="profileDropdownMenu" aria-label="Select profile">
+                      {waterState.profiles.map((profile) => (
+                        <button
+                          className={`profileOption ${profile.id === activeProfile.id ? "active" : ""}`}
+                          key={profile.id}
+                          onClick={() => handleProfileClick(profile)}
+                          type="button"
+                          aria-label={`Select ${profile.name}`}
+                        >
+                          <span className="profileCircle" style={{ "--profile-color": profile.color } as CSSProperties}>
+                            {profile.name
+                              .split(" ")
+                              .map((part) => part[0])
+                              .join("")}
+                          </span>
+                          <span>{profile.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </section>
 
-            <div className="progressRing" aria-label={`${displayedProgress}% of daily goal`}>
-              <svg viewBox="0 0 150 150" role="img">
-                <circle className="ringTrack" cx="75" cy="75" r={RING_RADIUS} />
-                <circle
-                  className="ringFill"
-                  cx="75"
-                  cy="75"
-                  r={RING_RADIUS}
-                  style={{
-                    strokeDasharray: RING_CIRCUMFERENCE,
-                    strokeDashoffset: RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * displayedRingProgress) / 100,
-                  }}
-                />
-              </svg>
-              <strong>{displayedProgress}%</strong>
-            </div>
+            <section
+              className="modernCard intakeSummaryCard"
+              onClick={openGoalEditor}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  openGoalEditor();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label="Today's intake. Change daily goal"
+            >
+              <div className="modernIcon waterIcon" aria-hidden="true">
+                <img src="/filled-water-drop.png" alt="" />
+              </div>
+              <div className="modernCardText">
+                <span>Today's Intake</span>
+                <strong className="splitMetric intakeMetric">
+                  <span className="metricMain">{formatLitersValue(displayedTotalToday)}</span>
+                  <span className="metricUnit">L</span>
+                  <span className="metricDivider">/</span>
+                  <span className="goalValueButton">
+                    <span className="goalMetricMain">{formatLitersValue(activeProfile.goalMl)}</span>
+                    <span className="goalMetricUnit">L</span>
+                  </span>
+                </strong>
+              </div>
+            </section>
+
+            <section className="modernCard remainingSummaryCard" aria-label="Remaining">
+              <div className="modernIcon remainingIcon" aria-hidden="true">
+                <img src="/green-cup.png" alt="" />
+              </div>
+              <div className="modernCardText">
+                <span>Remaining</span>
+                <strong className="splitMetric remainingMetric">
+                  <span className="metricMain">{formatLitersValue(displayedRemaining)}</span>
+                  <span className="metricUnit">L</span>
+                </strong>
+                <small>{displayedRemaining === 0 ? "Goal reached" : "to reach your goal"}</small>
+              </div>
+            </section>
           </header>
 
-          <section className="profileSection" aria-label="Select profile">
-            <h2>Select Your Profile</h2>
-            <div className="profiles">
-              {waterState.profiles.map((profile) => (
-                <button
-                  className={`profileButton ${profile.id === activeProfile.id ? "active" : ""}`}
-                  key={profile.id}
-                  onClick={() => selectProfile(profile)}
-                  type="button"
-                >
-                  <span className="profileCircle" style={{ "--profile-color": profile.color } as CSSProperties}>
-                    {profile.name
-                      .split(" ")
-                      .map((part) => part[0])
-                      .join("")}
+          <section className="modernMainGrid">
+            <section className="modernCard modernProgressCard" aria-label="Daily progress">
+              <div className="progressRing" aria-label={`${displayedProgress}% of daily goal`}>
+                <svg viewBox="0 0 150 150" role="img">
+                  <defs>
+                    <linearGradient id="progressRingGradient" x1="0" y1="0" x2="0" y2="150" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor="#4ec9ff" />
+                      <stop offset="48%" stopColor="#2e9cff" />
+                      <stop offset="100%" stopColor="#1764ff" />
+                    </linearGradient>
+                  </defs>
+                  <circle className="ringTrack" cx="75" cy="75" r={RING_RADIUS} />
+                  <circle
+                    className="ringFill"
+                    cx="75"
+                    cy="75"
+                    r={RING_RADIUS}
+                    style={{
+                      strokeDasharray: RING_CIRCUMFERENCE,
+                      strokeDashoffset: RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * displayedRingProgress) / 100,
+                    }}
+                  />
+                </svg>
+                <strong>
+                  <span className="progressPercentNumber">{displayedProgress}</span>
+                  <span className="progressPercentSign">%</span>
+                </strong>
+                <small>of your daily goal</small>
+                <em>
+                  <img className="progressDropIcon" src="/filled-water-drop.png" alt="" />
+                  <span className="progressCurrent">{formatLitersValue(displayedTotalToday)} L</span>
+                  <span className="progressSlash"> / </span>
+                  <span className="progressGoal">{formatLitersValue(activeProfile.goalMl)} L</span>
+                </em>
+              </div>
+            </section>
+
+            <section className="modernCard bottleSizeCard" aria-label="Bottle size">
+              <h2>Bottle Size</h2>
+              <div className="bottleChoiceGrid">
+                {activeProfile.bottles.map((bottle) => (
+                  <button
+                    className={`bottleChoice ${bottle.id === selectedBottle.id ? "selected" : ""}`}
+                    key={bottle.id}
+                    onClick={() => setWaterState((current) => ({ ...current, selectedBottleId: bottle.id }))}
+                    type="button"
+                  >
+                    <span aria-hidden="true">
+                      <img src="/grey-bottle.png" alt="" />
+                    </span>
+                    <strong>{formatMl(bottle.ml)}</strong>
+                    <small>{bottle.name}</small>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </section>
+
+          <section className="modernBottomGrid">
+            <button className="modernCard modernLastFillCard" onClick={() => setIsHistoryOpen(true)} type="button">
+              <div className="modernIcon clockIcon" aria-hidden="true">
+                <img src="/blue-clock.png" alt="" />
+              </div>
+              <div className="modernCardText">
+                <span>Last Fill</span>
+                <strong>{latestFill ? formatMl(latestFill.amountMl) : "--"}</strong>
+                <small>{latestFill ? formatLastFillDate(latestFill.at) : "No fills yet"}</small>
+              </div>
+              <img className="lastFillBottleArt" src="/bottle-level.png" alt="" aria-hidden="true" />
+            </button>
+
+            <section className="modernCard modernStatusCard" aria-label="Bottle status">
+              <div className="modernIcon checkIcon" aria-hidden="true">
+                <img src="/green-check.png" alt="" />
+              </div>
+              <div className="modernCardText">
+                <span>Bottle Status</span>
+                <div className={`liveReadout ${waterState.bottlePresent ? "hasBottle" : "noBottle"}`}>
+                  <span>
+                    {hardwareError
+                      ? hardwareError
+                      : fillStartedAt
+                        ? "Dispensing"
+                        : !isEspConfigured
+                          ? "Set ESP32 IP"
+                          : waterState.bottlePresent
+                          ? "Bottle detected"
+                          : "No bottle"}
                   </span>
-                  <span className="profileName">{profile.name}</span>
-                </button>
-              ))}
-            </div>
+                  {fillStartedAt ? <strong>{formatMl(liveAmount)}</strong> : <i aria-hidden="true" />}
+                </div>
+                <small>{waterState.bottlePresent ? "You're good to go!" : "Place a bottle to start"}</small>
+              </div>
+              {waterState.bottlePresent ? <img className="bottlePresentArt" src="/green-bottle-present.png" alt="" aria-hidden="true" /> : null}
+            </section>
           </section>
 
-          <section className="metricGrid" aria-label="Water stats">
-            <button className="metricCard interactive" onClick={() => setIsHistoryOpen(true)} type="button">
-              <span>Last Fill</span>
-              <strong>{latestFill ? formatMl(latestFill.amountMl) : "--"}</strong>
-              <small>{latestFill ? formatLastFillDate(latestFill.at) : "No fills yet"}</small>
-            </button>
-            <button className="metricCard interactive" onClick={selectNextBottle} type="button">
-              <span>Bottle Size</span>
-              <strong>{formatMl(selectedBottle.ml)}</strong>
-              <small>{selectedBottle.name}</small>
-            </button>
-            <MetricCard label="Remaining" primary={formatMl(displayedRemaining)} secondary={displayedRemaining === 0 ? "Goal reached" : "Left today"} />
-          </section>
-
-          <footer className="fillControls">
+          <footer className="fillControls modernDispenseFooter">
             <button
               className={`startButton ${fillStartedAt ? "isStopping" : ""}`}
               disabled={isCommandPending || !isEspConfigured || (!waterState.bottlePresent && !fillStartedAt)}
@@ -549,35 +732,22 @@ function App() {
               }}
               type="button"
             >
-              {isCommandPending ? "Working..." : fillStartedAt ? "Stop Dispensing" : "Start Dispensing"}
+              <img src="/outlined-water-drop.png" alt="" />
+              {isCommandPending ? "Working..." : fillStartedAt ? "Stop Dispensing" : "Dispense Water"}
             </button>
-            <div className={`liveReadout ${waterState.bottlePresent ? "hasBottle" : "noBottle"}`}>
-              <span>
-                {hardwareError
-                  ? hardwareError
-                  : fillStartedAt
-                    ? "Dispensing"
-                    : !isEspConfigured
-                      ? "Set ESP32 IP"
-                      : waterState.bottlePresent
-                      ? "Bottle detected"
-                      : "No bottle"}
-              </span>
-              {fillStartedAt ? <strong>{formatMl(liveAmount)}</strong> : <i aria-hidden="true" />}
-            </div>
           </footer>
         </div>
       </section>
 
       {isHistoryOpen ? (
-        <div className="modalBackdrop" role="presentation" onClick={() => setIsHistoryOpen(false)}>
+        <div className="modalBackdrop" role="presentation" onClick={closeHistory}>
           <section className="historyModal" aria-label="Last 7 days filling history" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modalHeader">
               <div>
                 <span>Water History</span>
                 <h2>Last 7 Days</h2>
               </div>
-              <button className="closeButton" onClick={() => setIsHistoryOpen(false)} type="button" aria-label="Close history">
+              <button className="closeButton" onClick={closeHistory} type="button" aria-label="Close history">
                 X
               </button>
             </header>
@@ -591,7 +761,11 @@ function App() {
                   </div>
 
                   <div className="sessionList">
-                    {day.sessions.length ? (
+                    {day.sessions.length > 1 ? (
+                      <button className="historyActivityButton historyActivityButtonFull" onClick={() => setActivityDayKey(day.dateKey)} type="button">
+                        View All Activity
+                      </button>
+                    ) : day.sessions.length ? (
                       (() => {
                         const session = day.sessions[0];
 
@@ -607,6 +781,31 @@ function App() {
                     )}
                   </div>
                 </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {activityDay ? (
+        <div className="modalBackdrop activityBackdrop" role="presentation" onClick={() => setActivityDayKey(null)}>
+          <section className="activityModal" aria-label={`${formatHistoryDay(activityDay.date)} filling activity`} role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <header className="modalHeader">
+              <div>
+                <span>Water Activity</span>
+                <h2>{formatHistoryDay(activityDay.date)}</h2>
+              </div>
+              <button className="closeButton" onClick={() => setActivityDayKey(null)} type="button" aria-label="Close activity">
+                X
+              </button>
+            </header>
+
+            <div className="activityList">
+              {activityDay.sessions.map((session) => (
+                <div className="activityRow" key={session.id}>
+                  <span>{new Date(session.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+                  <strong>{formatMl(session.amountMl)}</strong>
+                </div>
               ))}
             </div>
           </section>
@@ -640,6 +839,52 @@ function App() {
                 Cancel
               </button>
               <button className="goalActionButton primary" onClick={confirmGoalEditor} type="button">
+                Confirm
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {colorProfile ? (
+        <div className="modalBackdrop" role="presentation" onClick={closeColorEditor}>
+          <section className="colorModal" aria-label="Profile color picker" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <header className="modalHeader">
+              <div>
+                <span>Profile Colour</span>
+                <h2>{colorProfile.name}</h2>
+              </div>
+              <button className="closeButton" onClick={closeColorEditor} type="button" aria-label="Close color picker">
+                X
+              </button>
+            </header>
+
+            <div className="colorPreview">
+              <span className="profileCircle" style={{ "--profile-color": draftProfileColor } as CSSProperties}>
+                {colorProfile.name
+                  .split(" ")
+                  .map((part) => part[0])
+                  .join("")}
+              </span>
+            </div>
+
+            <div className="colorGrid">
+              {profileColorOptions.map((color) => (
+                <button
+                  className={`colorSwatch ${draftProfileColor === color ? "selected" : ""}`}
+                  key={color}
+                  onClick={() => setDraftProfileColor(color)}
+                  style={{ "--swatch-color": color } as CSSProperties}
+                  type="button"
+                  aria-label={`Use profile color ${color}`}
+                />
+              ))}
+            </div>
+            <div className="goalActions">
+              <button className="goalActionButton secondary" onClick={closeColorEditor} type="button">
+                Cancel
+              </button>
+              <button className="goalActionButton primary" onClick={confirmProfileColor} type="button">
                 Confirm
               </button>
             </div>
